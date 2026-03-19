@@ -15,6 +15,10 @@ Divi's Theme Builder uses four custom post types to store its data:
 
 All data is stored in the WordPress database. When a template or template part is deleted through the Divi Theme Builder interface, Divi does **not** trash or delete the post — it stamps it with a `_et_theme_builder_marked_as_unused` meta value (a timestamp). After 7 days, Divi's cleanup job moves the post to the WordPress trash. This plugin intercepts that process and lets you restore items before they are lost.
 
+## Requirements
+
+- The **Divi theme** (or a Divi child theme) must be installed and active. The plugin will not activate without it.
+
 ## Install the Plugin
 
 1. Download the plugin zip file
@@ -24,7 +28,7 @@ All data is stored in the WordPress database. When a template or template part i
 
 ## How to Use
 
-Once activated, navigate to **Tools > Restore TB Templates** in your WordPress Dashboard. The plugin has three tabs.
+Once activated, navigate to **Divi > Restore TB Templates** in your WordPress Dashboard. The plugin has three tabs.
 
 ---
 
