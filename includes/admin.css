@@ -91,6 +91,18 @@
 .rmtbt-type-et-body-layout   { background: #d1fae5; color: #065f46; }
 .rmtbt-type-et-footer-layout { background: #ede9fe; color: #5b21b6; }
 
+/* Parts tab section headings */
+.rmtbt-section-heading {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 24px 0 8px;
+	font-size: 14px;
+	font-weight: 600;
+}
+.rmtbt-section-heading:first-of-type { margin-top: 0; }
+.rmtbt-section-count { color: #646970; font-size: 12px; font-weight: 400; }
+
 /* Parts restore form */
 .rmtbt-link-form { display: flex; flex-direction: column; gap: 6px; }
 .rmtbt-select    { max-width: 100%; font-size: 12px; }

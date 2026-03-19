@@ -565,10 +565,21 @@ class RMTBT_Admin {
 
 		$active_templates = $this->get_active_templates();
 		$type_labels      = array(
-			self::HEADER_PT => 'Header',
-			self::BODY_PT   => 'Body',
-			self::FOOTER_PT => 'Footer',
+			self::HEADER_PT => 'Headers',
+			self::BODY_PT   => 'Bodies',
+			self::FOOTER_PT => 'Footers',
 		);
+
+		// Group parts by post type in the fixed Header → Body → Footer order.
+		$grouped = array();
+		foreach ( array_keys( $type_labels ) as $type ) {
+			$grouped[ $type ] = array();
+		}
+		foreach ( $parts as $part ) {
+			if ( isset( $grouped[ $part->post_type ] ) ) {
+				$grouped[ $part->post_type ][] = $part;
+			}
+		}
 		?>
 		<div class="rmtbt-info-box">
 			<strong>How to restore a template part:</strong> Select the template it belongs to from the dropdown, then click <em>Restore &amp; Re-link</em>.
@@ -576,33 +587,37 @@ class RMTBT_Admin {
 			The part title usually matches the template name.
 		</div>
 
+		<?php foreach ( $grouped as $post_type => $group_parts ) :
+			if ( empty( $group_parts ) ) continue;
+			$section_label = $type_labels[ $post_type ];
+			$type_class    = str_replace( '_', '-', $post_type );
+		?>
+		<h3 class="rmtbt-section-heading">
+			<span class="rmtbt-type-pill rmtbt-type-<?php echo esc_attr( $type_class ); ?>">
+				<?php echo esc_html( $section_label ); ?>
+			</span>
+			<span class="rmtbt-section-count"><?php echo count( $group_parts ); ?> item<?php echo count( $group_parts ) !== 1 ? 's' : ''; ?></span>
+		</h3>
+
 		<table class="wp-list-table widefat fixed striped rmtbt-table">
 			<thead>
 				<tr>
 					<th class="col-title">Part Title</th>
-					<th class="col-type">Type</th>
 					<th class="col-date">Marked Unused</th>
 					<th class="col-status">Status</th>
 					<th class="col-actions-wide">Restore &amp; Re-link</th>
 				</tr>
 			</thead>
 			<tbody>
-			<?php foreach ( $parts as $part ) :
+			<?php foreach ( $group_parts as $part ) :
 				$marked_date = get_post_meta( $part->ID, self::UNUSED_META, true );
 				$days_left   = $this->days_until_trash( $marked_date );
 				$is_trashed  = $part->post_status === 'trash';
-				$type_label  = isset( $type_labels[ $part->post_type ] ) ? $type_labels[ $part->post_type ] : $part->post_type;
-				$type_class  = str_replace( '_', '-', $part->post_type );
 			?>
 				<tr>
 					<td>
 						<strong><?php echo esc_html( $part->post_title ); ?></strong>
-						<br><small class="rmtbt-muted">ID: <?php echo $part->ID; ?> &bull; <?php echo esc_html( $part->post_type ); ?></small>
-					</td>
-					<td>
-						<span class="rmtbt-type-pill rmtbt-type-<?php echo esc_attr( $type_class ); ?>">
-							<?php echo esc_html( $type_label ); ?>
-						</span>
+						<br><small class="rmtbt-muted">ID: <?php echo $part->ID; ?></small>
 					</td>
 					<td>
 						<span class="rmtbt-date"><?php echo esc_html( $marked_date ); ?></span>
@@ -637,6 +652,7 @@ class RMTBT_Admin {
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+		<?php endforeach; ?>
 		<?php
 	}
 
