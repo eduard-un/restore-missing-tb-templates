@@ -86,14 +86,6 @@ Click **Restore This Revision** (in the diff view) or **Restore** (in the revisi
 
 ---
 
-## The 7-Day Window
-
-Divi marks unused templates and parts with a timestamp. Its cleanup job runs on every admin page load and trashes any item marked more than **7 days ago**. This plugin handles untrashing automatically, but items that have been in the WordPress trash for longer than WordPress's own trash retention period (default 30 days) may have been permanently deleted and cannot be recovered.
-
-Act promptly — the sooner you restore, the less risk of permanent data loss.
-
----
-
 ## Multisite
 
 Activate the plugin at the **sub-site level**, not at the Network level.
