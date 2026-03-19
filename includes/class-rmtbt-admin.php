@@ -5,6 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class RMTBT_Admin {
 
+	private $page_hook;
+
 	const TEMPLATE_PT = 'et_template';
 	const HEADER_PT   = 'et_header_layout';
 	const BODY_PT     = 'et_body_layout';
@@ -14,7 +16,7 @@ class RMTBT_Admin {
 	const TRASH_DAYS  = 7;
 
 	public function init() {
-		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		add_action( 'admin_menu', array( $this, 'register_menu' ), 99 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( 'admin_post_rmtbt_restore_template', array( $this, 'handle_restore_template' ) );
 		add_action( 'admin_post_rmtbt_restore_part', array( $this, 'handle_restore_part' ) );
@@ -23,7 +25,8 @@ class RMTBT_Admin {
 	}
 
 	public function register_menu() {
-		add_management_page(
+		$this->page_hook = add_submenu_page(
+			'et_divi_options',
 			'Restore TB Templates',
 			'Restore TB Templates',
 			'manage_options',
@@ -33,7 +36,7 @@ class RMTBT_Admin {
 	}
 
 	public function enqueue_scripts( $hook ) {
-		if ( $hook !== 'tools_page_rmtbt' ) {
+		if ( $hook !== $this->page_hook ) {
 			return;
 		}
 
@@ -311,7 +314,7 @@ class RMTBT_Admin {
 			$this->restore_template( $id );
 		}
 
-		wp_safe_redirect( admin_url( 'tools.php?page=rmtbt&tab=templates&restored=template' ) );
+		wp_safe_redirect( admin_url( 'admin.php?page=rmtbt&tab=templates&restored=template' ) );
 		exit;
 	}
 
@@ -330,7 +333,7 @@ class RMTBT_Admin {
 		}
 
 		$status = $template_id > 0 ? 'part_linked' : 'part_only';
-		wp_safe_redirect( admin_url( 'tools.php?page=rmtbt&tab=parts&restored=' . $status ) );
+		wp_safe_redirect( admin_url( 'admin.php?page=rmtbt&tab=parts&restored=' . $status ) );
 		exit;
 	}
 
@@ -349,7 +352,7 @@ class RMTBT_Admin {
 			$this->restore_part_only( $part->ID );
 		}
 
-		wp_safe_redirect( admin_url( 'tools.php?page=rmtbt&restored=all' ) );
+		wp_safe_redirect( admin_url( 'admin.php?page=rmtbt&restored=all' ) );
 		exit;
 	}
 
@@ -373,7 +376,7 @@ class RMTBT_Admin {
 			}
 		}
 
-		wp_safe_redirect( admin_url( 'tools.php?page=rmtbt&tab=revisions&part_id=' . $part_id . '&restored=revision' ) );
+		wp_safe_redirect( admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part_id . '&restored=revision' ) );
 		exit;
 	}
 
@@ -398,19 +401,19 @@ class RMTBT_Admin {
 			<?php $this->render_notices( $divi_version, $deleted_templates, $deleted_parts ); ?>
 
 			<nav class="nav-tab-wrapper">
-				<a href="<?php echo esc_url( admin_url( 'tools.php?page=rmtbt&tab=templates' ) ); ?>" class="nav-tab <?php echo $active_tab === 'templates' ? 'nav-tab-active' : ''; ?>">
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=rmtbt&tab=templates' ) ); ?>" class="nav-tab <?php echo $active_tab === 'templates' ? 'nav-tab-active' : ''; ?>">
 					Templates
 					<?php if ( ! empty( $deleted_templates ) ) : ?>
 						<span class="rmtbt-count"><?php echo count( $deleted_templates ); ?></span>
 					<?php endif; ?>
 				</a>
-				<a href="<?php echo esc_url( admin_url( 'tools.php?page=rmtbt&tab=parts' ) ); ?>" class="nav-tab <?php echo $active_tab === 'parts' ? 'nav-tab-active' : ''; ?>">
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=rmtbt&tab=parts' ) ); ?>" class="nav-tab <?php echo $active_tab === 'parts' ? 'nav-tab-active' : ''; ?>">
 					Template Parts
 					<?php if ( ! empty( $deleted_parts ) ) : ?>
 						<span class="rmtbt-count"><?php echo count( $deleted_parts ); ?></span>
 					<?php endif; ?>
 				</a>
-				<a href="<?php echo esc_url( admin_url( 'tools.php?page=rmtbt&tab=revisions' ) ); ?>" class="nav-tab <?php echo $active_tab === 'revisions' ? 'nav-tab-active' : ''; ?>">
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=rmtbt&tab=revisions' ) ); ?>" class="nav-tab <?php echo $active_tab === 'revisions' ? 'nav-tab-active' : ''; ?>">
 					Revisions
 				</a>
 			</nav>
@@ -699,7 +702,7 @@ class RMTBT_Admin {
 				$is_deleted   = (bool) get_post_meta( $part->ID, self::UNUSED_META, true );
 				$is_trashed   = $part->post_status === 'trash';
 				$parent_tpl   = $this->get_parent_template_for_part( $part->ID, $part->post_type );
-				$rev_url      = admin_url( 'tools.php?page=rmtbt&tab=revisions&part_id=' . $part->ID );
+				$rev_url      = admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part->ID );
 			?>
 				<tr>
 					<td>
@@ -756,8 +759,17 @@ class RMTBT_Admin {
 			return;
 		}
 
-		$revisions  = wp_get_post_revisions( $part_id, array( 'order' => 'DESC' ) );
-		$back_url   = admin_url( 'tools.php?page=rmtbt&tab=revisions' );
+		$revisions     = wp_get_post_revisions( $part_id, array( 'order' => 'DESC' ) );
+		$revisions     = array_values( $revisions );
+		$newest_rev_id = ! empty( $revisions ) ? $revisions[0]->ID : 0;
+		if (
+			! empty( $revisions ) &&
+			$revisions[0]->post_content === $part->post_content &&
+			$revisions[0]->post_title === $part->post_title
+		) {
+			array_shift( $revisions );
+		}
+		$back_url   = admin_url( 'admin.php?page=rmtbt&tab=revisions' );
 		$type_labels = array(
 			self::HEADER_PT => 'Header',
 			self::BODY_PT   => 'Body',
@@ -806,17 +818,12 @@ class RMTBT_Admin {
 				</tr>
 
 				<?php
-				$revisions     = array_values( $revisions );
-				$newest_rev_id = $revisions[0]->ID;
-				foreach ( $revisions as $i => $revision ) :
-					$author = get_the_author_meta( 'display_name', $revision->post_author );
-					// All revisions compare against the newest revision (the current saved state).
-					// The newest revision itself compares against the main post (compare_to=0).
-					$compare_to = ( $i === 0 ) ? 0 : $newest_rev_id;
-					$diff_url   = admin_url(
-						'tools.php?page=rmtbt&tab=revisions&part_id=' . $part_id
+				foreach ( $revisions as $revision ) :
+					$author   = get_the_author_meta( 'display_name', $revision->post_author );
+					$diff_url = admin_url(
+						'admin.php?page=rmtbt&tab=revisions&part_id=' . $part_id
 						. '&revision_id=' . $revision->ID
-						. ( $compare_to ? '&compare_to=' . $compare_to : '' )
+						. ( $newest_rev_id ? '&compare_to=' . $newest_rev_id : '' )
 					);
 				?>
 					<tr>
@@ -856,7 +863,7 @@ class RMTBT_Admin {
 			return;
 		}
 
-		$back_url = admin_url( 'tools.php?page=rmtbt&tab=revisions&part_id=' . $part_id );
+		$back_url = admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part_id );
 		$author   = get_the_author_meta( 'display_name', $revision->post_author );
 
 		// Determine the "current" state to compare against.
@@ -925,7 +932,7 @@ class RMTBT_Admin {
 		}
 		?>
 		<div class="rmtbt-breadcrumb">
-			<a href="<?php echo esc_url( admin_url( 'tools.php?page=rmtbt&tab=revisions' ) ); ?>">&larr; Back to Revisions</a>
+			<a href="<?php echo esc_url( admin_url( 'admin.php?page=rmtbt&tab=revisions' ) ); ?>">&larr; Back to Revisions</a>
 			&nbsp;&bull;&nbsp;
 			<a href="<?php echo esc_url( $back_url ); ?>"><?php echo esc_html( $part->post_title ); ?></a>
 		</div>
