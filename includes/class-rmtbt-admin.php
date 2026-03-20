@@ -19,7 +19,7 @@ class RMTBT_Admin {
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 99 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( 'admin_post_rmtbt_restore_template', array( $this, 'handle_restore_template' ) );
-		add_action( 'admin_post_rmtbt_restore_part', array( $this, 'handle_restore_part' ) );
+		add_action( 'admin_post_rmtbt_export_part', array( $this, 'handle_export_part' ) );
 		add_action( 'admin_post_rmtbt_restore_all', array( $this, 'handle_restore_all' ) );
 		add_action( 'admin_post_rmtbt_restore_revision', array( $this, 'handle_restore_revision' ) );
 	}
@@ -84,22 +84,6 @@ class RMTBT_Admin {
 				array(
 					'key'     => self::UNUSED_META,
 					'compare' => 'EXISTS',
-				),
-			),
-		) );
-	}
-
-	private function get_active_templates() {
-		return get_posts( array(
-			'post_type'      => self::TEMPLATE_PT,
-			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'orderby'        => 'title',
-			'order'          => 'ASC',
-			'meta_query'     => array(
-				array(
-					'key'     => self::UNUSED_META,
-					'compare' => 'NOT EXISTS',
 				),
 			),
 		) );
@@ -282,22 +266,6 @@ class RMTBT_Admin {
 		delete_post_meta( $part_id, self::UNUSED_META );
 	}
 
-	private function restore_part_with_link( $part_id, $template_id ) {
-		$part_id     = (int) $part_id;
-		$template_id = (int) $template_id;
-		$post_type   = get_post_type( $part_id );
-
-		if ( get_post_status( $part_id ) === 'trash' ) {
-			wp_untrash_post( $part_id );
-		}
-
-		delete_post_meta( $part_id, self::UNUSED_META );
-
-		if ( $template_id > 0 && $post_type ) {
-			update_post_meta( $template_id, $this->get_part_meta_key( $post_type ), $part_id );
-		}
-	}
-
 	// -------------------------
 	// ACTION HANDLERS
 	// -------------------------
@@ -318,22 +286,126 @@ class RMTBT_Admin {
 		exit;
 	}
 
-	public function handle_restore_part() {
-		check_admin_referer( 'rmtbt_restore_part' );
+	public function handle_export_part() {
+		check_admin_referer( 'rmtbt_export_part' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'Unauthorized' );
 		}
 
-		$part_id     = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
-		$template_id = isset( $_POST['template_id'] ) ? (int) $_POST['template_id'] : 0;
-
-		if ( $part_id ) {
-			$this->restore_part_with_link( $part_id, $template_id );
+		$part_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
+		if ( ! $part_id ) {
+			wp_die( 'Invalid part ID' );
 		}
 
-		$status = $template_id > 0 ? 'part_linked' : 'part_only';
-		wp_safe_redirect( admin_url( 'admin.php?page=rmtbt&tab=parts&restored=' . $status ) );
+		$part = get_post( $part_id );
+		if ( ! $part || ! in_array( $part->post_type, array( self::HEADER_PT, self::BODY_PT, self::FOOTER_PT ), true ) ) {
+			wp_die( 'Template part not found' );
+		}
+
+		// --- Presets ---
+		// Collect text from preset attrs so we can scan it for gcid- references too.
+		$presets       = null;
+		$preset_source = '';
+
+		preg_match_all( '/"modulePreset":\[([^\]]+)\]/', $part->post_content, $mp_matches );
+		$preset_ids = array();
+		foreach ( $mp_matches[1] as $match ) {
+			preg_match_all( '/"([a-z0-9]+)"/', $match, $id_matches );
+			foreach ( $id_matches[1] as $id ) {
+				$preset_ids[] = $id;
+			}
+		}
+		$preset_ids = array_unique( $preset_ids );
+
+		if ( ! empty( $preset_ids ) ) {
+			$all_presets = et_get_option( 'builder_global_presets_d5', array(), '', true, false, '', '', true );
+			$used_presets = array();
+
+			if ( is_array( $all_presets ) ) {
+				foreach ( array( 'module', 'group' ) as $preset_type ) {
+					if ( ! isset( $all_presets[ $preset_type ] ) ) {
+						continue;
+					}
+					foreach ( $all_presets[ $preset_type ] as $module_name => $module_data ) {
+						if ( ! isset( $module_data['items'] ) ) {
+							continue;
+						}
+						foreach ( $preset_ids as $preset_id ) {
+							if ( ! isset( $module_data['items'][ $preset_id ] ) ) {
+								continue;
+							}
+							if ( ! isset( $used_presets[ $preset_type ][ $module_name ] ) ) {
+								$used_presets[ $preset_type ][ $module_name ] = array(
+									'default' => isset( $module_data['default'] ) ? $module_data['default'] : '',
+									'items'   => array(),
+								);
+							}
+							$item = $module_data['items'][ $preset_id ];
+							unset( $item['renderAttrs'] );
+							$used_presets[ $preset_type ][ $module_name ]['items'][ $preset_id ] = $item;
+							$preset_source .= wp_json_encode( $item );
+						}
+					}
+				}
+			}
+
+			if ( ! empty( $used_presets ) ) {
+				$presets = $used_presets;
+			}
+		}
+
+		// --- Global Colors ---
+		// Scan both post content and preset attrs for gcid- references.
+		preg_match_all( '/gcid-[a-z0-9]+/', $part->post_content . $preset_source, $color_matches );
+		$referenced_ids = array_unique( $color_matches[0] );
+
+		$global_colors = array();
+		if ( ! empty( $referenced_ids ) ) {
+			$global_data = maybe_unserialize( et_get_option( 'et_global_data' ) );
+			$all_colors  = isset( $global_data['global_colors'] ) ? $global_data['global_colors'] : array();
+
+			foreach ( $referenced_ids as $color_id ) {
+				if ( isset( $all_colors[ $color_id ] ) ) {
+					$raw           = $all_colors[ $color_id ];
+					$global_colors[] = array(
+						$color_id,
+						array(
+							'color'  => isset( $raw['color'] ) ? $raw['color'] : '',
+							'status' => isset( $raw['status'] ) ? $raw['status'] : 'active',
+							'label'  => isset( $raw['label'] ) ? $raw['label'] : '',
+						),
+					);
+				}
+			}
+		}
+
+		// --- Build export ---
+		$custom_css = get_post_meta( $part_id, '_et_pb_custom_css', false );
+
+		$export = array(
+			'context'            => 'et_builder',
+			'data'               => array( $part_id => $part->post_content ),
+			'presets'            => $presets,
+			'global_colors'      => $global_colors,
+			'global_variables'   => array(),
+			'page_settings_meta' => array(
+				'_et_pb_custom_css' => $custom_css ?: array( '' ),
+			),
+			'canvases'           => array(
+				'local'  => array(),
+				'global' => array(),
+			),
+			'images'             => array(),
+			'thumbnails'         => array(),
+		);
+
+		$filename = sanitize_file_name( $part->post_title ) . '.json';
+
+		header( 'Content-Type: application/json' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'Pragma: no-cache' );
+		echo wp_json_encode( $export, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 		exit;
 	}
 
@@ -436,10 +508,6 @@ class RMTBT_Admin {
 
 		if ( $restored === 'template' ) {
 			echo '<div class="notice notice-success is-dismissible"><p><strong>Done.</strong> Template and its linked parts have been restored. Open the Divi Theme Builder to verify.</p></div>';
-		} elseif ( $restored === 'part_linked' ) {
-			echo '<div class="notice notice-success is-dismissible"><p><strong>Done.</strong> Template part restored and re-linked to its template.</p></div>';
-		} elseif ( $restored === 'part_only' ) {
-			echo '<div class="notice notice-warning is-dismissible"><p><strong>Part restored without re-linking.</strong> Assign it to a template in the Divi Theme Builder, or restore again with a template selected.</p></div>';
 		} elseif ( $restored === 'all' ) {
 			echo '<div class="notice notice-success is-dismissible"><p><strong>Done.</strong> All deleted templates restored. Orphaned parts have been un-marked — assign them to their templates in the Divi Theme Builder.</p></div>';
 		} elseif ( $restored === 'revision' ) {
@@ -563,7 +631,6 @@ class RMTBT_Admin {
 			return;
 		}
 
-		$active_templates = $this->get_active_templates();
 		$type_labels      = array(
 			self::HEADER_PT => 'Headers',
 			self::BODY_PT   => 'Bodies',
@@ -582,9 +649,7 @@ class RMTBT_Admin {
 		}
 		?>
 		<div class="rmtbt-info-box">
-			<strong>How to restore a template part:</strong> Select the template it belongs to from the dropdown, then click <em>Restore &amp; Re-link</em>.
-			Divi clears the part-to-template link when a part is deleted, so you must specify the template manually.
-			The part title usually matches the template name.
+			<strong>Export a template part as JSON</strong> to save its content. You can then re-import it via Divi Theme Builder &rarr; Import.
 		</div>
 
 		<?php foreach ( $grouped as $post_type => $group_parts ) :
@@ -605,7 +670,7 @@ class RMTBT_Admin {
 					<th class="col-title">Part Title</th>
 					<th class="col-date">Marked Unused</th>
 					<th class="col-status">Status</th>
-					<th class="col-actions-wide">Restore &amp; Re-link</th>
+					<th class="col-actions">Actions</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -625,27 +690,11 @@ class RMTBT_Admin {
 					</td>
 					<td><?php $this->render_status_pill( $is_trashed ); ?></td>
 					<td>
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rmtbt-link-form">
-							<?php wp_nonce_field( 'rmtbt_restore_part' ); ?>
-							<input type="hidden" name="action" value="rmtbt_restore_part">
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( 'rmtbt_export_part' ); ?>
+							<input type="hidden" name="action" value="rmtbt_export_part">
 							<input type="hidden" name="post_id" value="<?php echo $part->ID; ?>">
-							<?php if ( ! empty( $active_templates ) ) : ?>
-								<select name="template_id" class="rmtbt-select">
-									<option value="0">— Select template (optional) —</option>
-									<?php foreach ( $active_templates as $tpl ) :
-										$use_on     = get_post_meta( $tpl->ID, '_et_use_on', false );
-										$use_on_str = ! empty( $use_on ) ? ' (' . $this->format_use_on( reset( $use_on ) ) . ')' : '';
-									?>
-										<option value="<?php echo $tpl->ID; ?>">
-											<?php echo esc_html( $tpl->post_title . $use_on_str ); ?>
-										</option>
-									<?php endforeach; ?>
-								</select>
-							<?php else : ?>
-								<em class="rmtbt-muted">No active templates found</em>
-								<input type="hidden" name="template_id" value="0">
-							<?php endif; ?>
-							<button type="submit" class="button button-primary button-small">Restore &amp; Re-link</button>
+							<button type="submit" class="button button-secondary button-small">Export JSON</button>
 						</form>
 					</td>
 				</tr>

@@ -53,18 +53,17 @@ Each row shows:
 
 ### Tab 2 — Template Parts
 
-Lists all `et_header_layout`, `et_body_layout`, and `et_footer_layout` posts that have been deleted or marked as unused — including parts that were removed individually from an otherwise active template.
+Lists all `et_header_layout`, `et_body_layout`, and `et_footer_layout` posts that have been deleted or marked as unused — including parts that were removed individually from an otherwise active template. Parts are grouped by type (Headers, Bodies, Footers).
 
-Each row shows the part title, type (Header / Body / Footer), the date it was marked unused, and its current post status.
+Each row shows the part title, type, the date it was marked unused, and its current post status.
 
-**Why a dropdown is required:**
-When Divi deletes a template part it deliberately clears the link between the part and its parent template (sets `_et_footer_layout_id` to `0` on the template post). There is no way to determine the original parent from the database alone. The dropdown lists all active templates so you can manually identify the correct one.
+**Export JSON** downloads the template part as a Divi-compatible `.json` file. The export includes:
+- The part's full layout content
+- Any **global presets** referenced by modules in the part
+- Any **global colours** referenced in the layout or presets
+- The part's custom CSS (`_et_pb_custom_css`)
 
-Select the template the part belongs to (the part title usually matches the template name), then click **Restore & Re-link**. This:
-1. Removes `_et_theme_builder_marked_as_unused` from the part post
-2. Updates the parent template's layout ID meta to point back to this part
-
-If you restore without selecting a template, the part's content is preserved in the database but it will not be visible in the Theme Builder until you manually reassign it.
+To recover the part, import the downloaded file via **Divi Theme Builder → Import** (the upload icon in the Theme Builder header). Divi will recreate the part and you can then assign it to the appropriate template.
 
 ---
 
