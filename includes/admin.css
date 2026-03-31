@@ -1,4 +1,4 @@
-.rmtbt-wrap { max-width: 1200px; }
+.rmtbt-wrap { max-width: 100%; }
 
 .rmtbt-tab-content {
 	background: #fff;
@@ -111,12 +111,49 @@
 .rmtbt-breadcrumb { margin-bottom: 16px; font-size: 13px; }
 .rmtbt-breadcrumb a { text-decoration: none; }
 
-.rmtbt-revision-header { margin-bottom: 16px; }
-.rmtbt-revision-header h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
-
-.rmtbt-current-row td { background: #f0fdf4 !important; }
-
-.rmtbt-rev-actions { display: flex; gap: 6px; align-items: center; }
+/* Revision timeline navigation bar */
+.rmtbt-rev-nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	background: #f6f7f7;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 10px 16px;
+	margin-bottom: 16px;
+}
+.rmtbt-rev-nav-info {
+	text-align: center;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.rmtbt-rev-nav-slider-wrap {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 0 16px;
+}
+.rmtbt-rev-slider {
+	width: 100%;
+	cursor: pointer;
+}
+.rmtbt-rev-nav-info {
+	text-align: center;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.rmtbt-rev-nav-position {
+	font-weight: 600;
+	font-size: 13px;
+}
+.rmtbt-rev-nav .button[disabled] {
+	opacity: 0.4;
+	cursor: default;
+}
 
 /* Diff view */
 .rmtbt-diff-header {

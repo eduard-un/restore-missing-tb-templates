@@ -3,7 +3,7 @@
  * Plugin Name: Divi Restore Theme Builder Templates
  * Plugin URI:  https://github.com/eduard-un/restore-missing-tb-templates
  * Description: Restore deleted or missing Divi Theme Builder templates and template parts. Compatible with Divi 4 and Divi 5.
- * Version:     1.1
+ * Version:     1.2
  * Author:      Eduard Ungureanu
  * Author URI:  https://github.com/eduard-ungureanu
  */
@@ -25,7 +25,7 @@ function rmtbt_activation_check() {
 	}
 }
 
-define( 'RMTBT_VERSION', '1.1' );
+define( 'RMTBT_VERSION', '1.2' );
 define( 'RMTBT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RMTBT_URL', plugin_dir_url( __FILE__ ) );
 

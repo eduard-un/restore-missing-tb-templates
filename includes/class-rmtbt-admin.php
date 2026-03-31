@@ -48,7 +48,7 @@ class RMTBT_Admin {
 		);
 
 		$tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : '';
-		if ( $tab === 'revisions' && isset( $_GET['revision_id'] ) ) {
+		if ( $tab === 'revisions' && isset( $_GET['part_id'] ) ) {
 			wp_enqueue_style( 'revisions' );
 		}
 	}
@@ -710,24 +710,11 @@ class RMTBT_Admin {
 	// -------------------------
 
 	private function render_revisions_tab() {
-		// State: diff view
 		if ( isset( $_GET['part_id'], $_GET['revision_id'] ) ) {
-			$compare_to_id = isset( $_GET['compare_to'] ) ? (int) $_GET['compare_to'] : 0;
-			$this->render_revision_diff(
-				(int) $_GET['part_id'],
-				(int) $_GET['revision_id'],
-				$compare_to_id
-			);
+			$this->render_revision_diff( (int) $_GET['part_id'], (int) $_GET['revision_id'] );
 			return;
 		}
 
-		// State: revision list for a specific part
-		if ( isset( $_GET['part_id'] ) ) {
-			$this->render_revision_list( (int) $_GET['part_id'] );
-			return;
-		}
-
-		// State: overview — all parts with revisions
 		$this->render_revisions_overview();
 	}
 
@@ -767,7 +754,7 @@ class RMTBT_Admin {
 				$is_deleted   = (bool) get_post_meta( $part->ID, self::UNUSED_META, true );
 				$is_trashed   = $part->post_status === 'trash';
 				$parent_tpl   = $this->get_parent_template_for_part( $part->ID, $part->post_type );
-				$rev_url      = admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part->ID );
+				$rev_url      = admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part->ID . '&revision_id=' . $latest->ID );
 			?>
 				<tr>
 					<td>
@@ -816,148 +803,71 @@ class RMTBT_Admin {
 		<?php
 	}
 
-	private function render_revision_list( $part_id ) {
-		$part = get_post( $part_id );
-
-		if ( ! $part || ! in_array( $part->post_type, array( self::HEADER_PT, self::BODY_PT, self::FOOTER_PT ), true ) ) {
-			echo '<p class="rmtbt-empty">Template part not found.</p>';
-			return;
-		}
-
-		$revisions     = wp_get_post_revisions( $part_id, array( 'order' => 'DESC' ) );
-		$revisions     = array_values( $revisions );
-		$newest_rev_id = ! empty( $revisions ) ? $revisions[0]->ID : 0;
-		if (
-			! empty( $revisions ) &&
-			$revisions[0]->post_content === $part->post_content &&
-			$revisions[0]->post_title === $part->post_title
-		) {
-			array_shift( $revisions );
-		}
-		$back_url   = admin_url( 'admin.php?page=rmtbt&tab=revisions' );
-		$type_labels = array(
-			self::HEADER_PT => 'Header',
-			self::BODY_PT   => 'Body',
-			self::FOOTER_PT => 'Footer',
-		);
-		$type_label = isset( $type_labels[ $part->post_type ] ) ? $type_labels[ $part->post_type ] : $part->post_type;
-		?>
-		<div class="rmtbt-breadcrumb">
-			<a href="<?php echo esc_url( $back_url ); ?>">&larr; Back to Revisions</a>
-		</div>
-
-		<div class="rmtbt-revision-header">
-			<h2>
-				Revisions for: <em><?php echo esc_html( $part->post_title ); ?></em>
-				<span class="rmtbt-type-pill rmtbt-type-<?php echo esc_attr( str_replace( '_', '-', $part->post_type ) ); ?>">
-					<?php echo esc_html( $type_label ); ?>
-				</span>
-			</h2>
-		</div>
-
-		<?php if ( empty( $revisions ) ) : ?>
-			<p class="rmtbt-empty">No revisions found for this template part.</p>
-			<?php return; ?>
-		<?php endif; ?>
-
-		<table class="wp-list-table widefat fixed striped rmtbt-table">
-			<thead>
-				<tr>
-					<th>Date</th>
-					<th>Author</th>
-					<th>Actions</th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php
-				// First row = current version (not a revision)
-				$current_author = get_the_author_meta( 'display_name', $part->post_author );
-				?>
-				<tr class="rmtbt-current-row">
-					<td>
-						<strong>Current version</strong>
-						<br><small class="rmtbt-muted"><?php echo esc_html( mysql2date( 'd M Y @ H:i', $part->post_modified ) ); ?></small>
-					</td>
-					<td><?php echo esc_html( $current_author ); ?></td>
-					<td><span class="rmtbt-pill rmtbt-pill-green">Active</span></td>
-				</tr>
-
-				<?php
-				foreach ( $revisions as $revision ) :
-					$author   = get_the_author_meta( 'display_name', $revision->post_author );
-					$diff_url = admin_url(
-						'admin.php?page=rmtbt&tab=revisions&part_id=' . $part_id
-						. '&revision_id=' . $revision->ID
-						. ( $newest_rev_id ? '&compare_to=' . $newest_rev_id : '' )
-					);
-				?>
-					<tr>
-						<td>
-							<?php echo esc_html( get_the_date( 'd M Y @ H:i', $revision ) ); ?>
-						</td>
-						<td><?php echo esc_html( $author ); ?></td>
-						<td class="rmtbt-rev-actions">
-							<a href="<?php echo esc_url( $diff_url ); ?>" class="button button-secondary button-small">
-								Compare with current
-							</a>
-							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-								<?php wp_nonce_field( 'rmtbt_restore_revision' ); ?>
-								<input type="hidden" name="action" value="rmtbt_restore_revision">
-								<input type="hidden" name="revision_id" value="<?php echo $revision->ID; ?>">
-								<input type="hidden" name="part_id" value="<?php echo $part_id; ?>">
-								<button type="submit" class="button button-primary button-small"
-									onclick="return confirm('Restore this revision? The current content of the template part will be overwritten.')">
-									Restore
-								</button>
-							</form>
-						</td>
-					</tr>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
-		<?php
-	}
-
-	private function render_revision_diff( $part_id, $revision_id, $compare_to_id = 0 ) {
+	private function render_revision_diff( $part_id, $revision_id ) {
 		$part     = get_post( $part_id );
 		$revision = get_post( $revision_id );
 
-		// Validate: revision must belong to this part
 		if ( ! $part || ! $revision || (int) $revision->post_parent !== $part_id ) {
 			echo '<p class="rmtbt-empty">Invalid revision or part.</p>';
 			return;
 		}
 
-		$back_url = admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part_id );
-		$author   = get_the_author_meta( 'display_name', $revision->post_author );
+		// Load all revisions for navigation (DESC = newest first, index 0 = newest).
+		$all_revisions = wp_get_post_revisions( $part_id, array( 'order' => 'DESC' ) );
+		$all_revisions = array_values( $all_revisions );
+		$total         = count( $all_revisions );
 
-		// Determine the "current" state to compare against.
-		// When compare_to_id is provided we compare two revisions against each other
-		// (avoids relying on $part->post_content which Divi 5 may not always update).
-		$compare_from_post = null;
-		if ( $compare_to_id > 0 ) {
-			$compare_from_post = get_post( $compare_to_id );
-			if ( ! $compare_from_post || (int) $compare_from_post->post_parent !== $part_id ) {
-				$compare_from_post = null;
+		// Find the position of the current revision in the list.
+		$current_idx = null;
+		foreach ( $all_revisions as $i => $rev ) {
+			if ( (int) $rev->ID === $revision_id ) {
+				$current_idx = $i;
+				break;
 			}
 		}
-		// Fall back to the main post if no valid compare_to revision was found.
-		if ( ! $compare_from_post ) {
-			$compare_from_post = $part;
+
+		if ( $current_idx === null ) {
+			echo '<p class="rmtbt-empty">Revision not found.</p>';
+			return;
 		}
 
-		// wp_get_revision_ui_diff() is in a file not loaded by default
+		// Human-readable position: 1 = oldest, $total = newest.
+		$position = $total - $current_idx;
+
+		// Prev/next IDs for navigation (prev = older, next = newer).
+		$prev_id = ( $current_idx < $total - 1 ) ? $all_revisions[ $current_idx + 1 ]->ID : null;
+		$next_id = ( $current_idx > 0 )           ? $all_revisions[ $current_idx - 1 ]->ID : null;
+
+		// Comparison model: left (from) = previous older state, right (to) = this revision.
+		// This ensures the newest revision always shows a meaningful diff against the one before it,
+		// rather than comparing against the current post (which is always identical to the newest revision).
+		// For the oldest revision there is no prior state, so we fall back to the current post.
+		if ( $current_idx < $total - 1 ) {
+			// There is an older revision to compare against.
+			$compare_from_post = $all_revisions[ $current_idx + 1 ]; // next older
+			$left_label        = 'Previous Revision';
+		} else {
+			// Oldest revision: compare against the current post to show any drift.
+			$compare_from_post = $part;
+			$left_label        = 'Current Version';
+		}
+
+		$back_url = admin_url( 'admin.php?page=rmtbt&tab=revisions' );
+		$base_url = admin_url( 'admin.php?page=rmtbt&tab=revisions&part_id=' . $part_id );
+		$author   = get_the_author_meta( 'display_name', $revision->post_author );
+
+		// wp_get_revision_ui_diff() is in a file not loaded by default.
 		require_once ABSPATH . 'wp-admin/includes/revision.php';
 
-		// Override the "Removed"/"Added" column labels inside the diff tables.
-		$label_filter = function( $args ) {
-			$args['title_left']  = 'This Revision';
-			$args['title_right'] = 'Current Version';
+		// Override the column labels inside the diff tables.
+		$label_filter = function( $args ) use ( $left_label ) {
+			$args['title_left']  = $left_label;
+			$args['title_right'] = 'This Revision';
 			return $args;
 		};
 		add_filter( 'revision_text_diff_options', $label_filter );
 
-		// Left (from) = current state; right (to) = the revision being reviewed.
+		// Left (from) = previous older state; right (to) = this revision.
 		$fields = wp_get_revision_ui_diff( $part, $compare_from_post, $revision );
 
 		remove_filter( 'revision_text_diff_options', $label_filter );
@@ -967,7 +877,6 @@ class RMTBT_Admin {
 		}
 
 		// wp_get_revision_ui_diff() silently omits post_content when both sides are identical.
-		// Check by name (more reliable across WP versions than checking the 'id' key).
 		$has_content_field = false;
 		foreach ( $fields as $f ) {
 			if ( isset( $f['name'] ) && $f['name'] === __( 'Content' ) ) {
@@ -982,8 +891,8 @@ class RMTBT_Admin {
 				$revision->post_content,
 				array(
 					'show_split_view' => true,
-					'title_left'      => 'This Revision',
-					'title_right'     => 'Current Version',
+					'title_left'      => $left_label,
+					'title_right'     => 'This Revision',
 				)
 			);
 
@@ -995,12 +904,64 @@ class RMTBT_Admin {
 					: '<tr><td colspan="3" style="padding:10px;color:#646970;font-style:italic;">Content is identical in both versions.</td></tr>',
 			);
 		}
+
+		// Build a position → revision_id map for the slider (position 1 = oldest, $total = newest).
+		$rev_ids_by_position = array();
+		foreach ( array_reverse( $all_revisions ) as $idx => $rev ) {
+			$rev_ids_by_position[ $idx + 1 ] = $rev->ID;
+		}
 		?>
 		<div class="rmtbt-breadcrumb">
-			<a href="<?php echo esc_url( admin_url( 'admin.php?page=rmtbt&tab=revisions' ) ); ?>">&larr; Back to Revisions</a>
-			&nbsp;&bull;&nbsp;
-			<a href="<?php echo esc_url( $back_url ); ?>"><?php echo esc_html( $part->post_title ); ?></a>
+			<a href="<?php echo esc_url( $back_url ); ?>">&larr; Back to Revisions</a>
 		</div>
+
+		<div class="rmtbt-rev-nav">
+			<?php if ( $prev_id ) : ?>
+				<a href="<?php echo esc_url( $base_url . '&revision_id=' . $prev_id ); ?>" class="button button-secondary">&larr; Previous</a>
+			<?php else : ?>
+				<button class="button button-secondary" disabled>&larr; Previous</button>
+			<?php endif; ?>
+
+			<div class="rmtbt-rev-nav-slider-wrap">
+				<input
+					type="range"
+					id="rmtbt-rev-slider"
+					class="rmtbt-rev-slider"
+					min="1"
+					max="<?php echo $total; ?>"
+					value="<?php echo $position; ?>"
+					step="1"
+				>
+				<div class="rmtbt-rev-nav-info">
+					<span class="rmtbt-rev-nav-position">Revision <?php echo $position; ?> of <?php echo $total; ?></span>
+					<span class="rmtbt-muted">
+						<?php echo esc_html( get_the_date( 'd M Y @ H:i', $revision ) ); ?>
+						&bull; <?php echo esc_html( $author ); ?>
+					</span>
+				</div>
+			</div>
+
+			<?php if ( $next_id ) : ?>
+				<a href="<?php echo esc_url( $base_url . '&revision_id=' . $next_id ); ?>" class="button button-secondary">Next &rarr;</a>
+			<?php else : ?>
+				<button class="button button-secondary" disabled>Next &rarr;</button>
+			<?php endif; ?>
+		</div>
+
+		<script>
+		(function() {
+			var slider  = document.getElementById( 'rmtbt-rev-slider' );
+			var revIds  = <?php echo wp_json_encode( $rev_ids_by_position ); ?>;
+			var baseUrl = <?php echo wp_json_encode( $base_url ); ?>;
+
+			slider.addEventListener( 'change', function() {
+				var pos = parseInt( this.value, 10 );
+				if ( revIds[ pos ] ) {
+					window.location.href = baseUrl + '&revision_id=' + revIds[ pos ];
+				}
+			} );
+		})();
+		</script>
 
 		<div class="rmtbt-diff-header">
 			<div class="rmtbt-diff-meta">
@@ -1008,9 +969,11 @@ class RMTBT_Admin {
 					<?php echo get_avatar( $revision->post_author, 40 ); ?>
 				</div>
 				<div>
-					<strong><?php echo esc_html( $author ); ?></strong>
+					<strong><?php echo esc_html( $part->post_title ); ?></strong>
 					<br>
-					<span class="rmtbt-muted"><?php echo esc_html( get_the_date( 'd M Y @ H:i', $revision ) ); ?></span>
+					<span class="rmtbt-muted">
+						Comparing against <strong><?php echo esc_html( $left_label ); ?></strong>
+					</span>
 				</div>
 			</div>
 
@@ -1027,12 +990,12 @@ class RMTBT_Admin {
 		</div>
 
 		<div class="rmtbt-diff-legend">
-			<span class="rmtbt-legend-removed">&#9632; This Revision</span>
-			<span class="rmtbt-legend-added">&#9632; Current Version</span>
+			<span class="rmtbt-legend-removed">&#9632; <?php echo esc_html( $left_label ); ?></span>
+			<span class="rmtbt-legend-added">&#9632; This Revision</span>
 		</div>
 
 		<?php if ( empty( $fields ) ) : ?>
-			<p class="rmtbt-empty">No differences found — this revision has the same content as the current version.</p>
+			<p class="rmtbt-empty">No differences found — this revision has the same content as the <?php echo esc_html( strtolower( $left_label ) ); ?>.</p>
 		<?php else : ?>
 			<div class="rmtbt-diff-wrap">
 				<?php foreach ( $fields as $field ) : ?>
