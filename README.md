@@ -69,19 +69,26 @@ To recover the part, import the downloaded file via **Divi Theme Builder → Imp
 
 ### Tab 3 — Revisions
 
-WordPress automatically saves revisions every time a template part is edited. This tab lets you browse and restore those revisions — useful when you want to roll back changes rather than recover a deleted part.
+WordPress automatically saves revisions every time a template part is edited. This tab lets you browse and restore those revisions — useful when you want to roll back a change rather than recover a deleted part.
 
 **Overview** lists every template part that has at least one revision, showing the part type, its parent template (if linked), the total revision count, and the date of the most recent revision.
 
-Click **View Revisions** to see all saved revisions for a part, listed newest-first alongside the current version.
+Click **View Revisions** to open the comparison view directly on the most recent revision.
 
-Click **Compare with current** on any revision to open a side-by-side diff view:
-- **Left column (Current Version)** — the content currently in the template part
+**The comparison view** shows a side-by-side diff:
+- **Left column (Previous Revision)** — the older state being compared against
 - **Right column (This Revision)** — the content stored in the selected revision
 
 The diff highlights exactly which blocks or lines were added or removed. Content is shown as raw Divi block markup (Divi 5) or shortcode (Divi 4) — a visual preview is not available, but the diff is sufficient to identify what changed.
 
-Click **Restore This Revision** (in the diff view) or **Restore** (in the revision list) to replace the template part's current content with the content from that revision. If the part was also marked as unused, the unused mark is cleared at the same time.
+**Navigating revisions** — at the top of the comparison view there is a timeline with three controls:
+- **← Previous** — step back to an older revision
+- **Slider** — jump directly to any revision without stepping through each one
+- **Next →** — step forward to a newer revision
+
+The position indicator below the slider shows which revision you are viewing (e.g. *Revision 3 of 7*) along with its save date and author.
+
+Click **Restore This Revision** to replace the template part's current content with the content from the selected revision. If the part was also marked as unused, the unused mark is cleared at the same time.
 
 ---
 
